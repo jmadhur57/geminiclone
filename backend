@@ -1,0 +1,49 @@
+import json
+import requests
+from flask import Flask, render_template
+from flask_socketio import SocketIO, send
+
+# Initialize Flask app and SocketIO
+app = Flask(name)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Google Gemini API setup (Replace with your API key)
+GEMINI_API_KEY = "AIzaSyDXNGCnPbvbBTkfoWJcYWyeSSxkOYfLY5Y"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}"
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('message')
+def handle_message(msg):
+    print(f"User Message: {msg}")
+
+    # Broadcast user message
+    send({"user": "User", "message": msg}, broadcast=True)
+    ai_response = get_gemini_response(msg)
+    send({"user": "Gemini AI", "message": ai_response}, broadcast=True)
+
+def get_gemini_response(prompt):
+    """Fetch response from Google Gemini API and handle errors."""
+    try:
+        headers = {"Content-Type": "application/json"}
+        data = {"contents": [{"parts": [{"text": prompt}]}]}
+
+        response = requests.post(GEMINI_API_URL, headers=headers, json=data)
+        response_json = response.json()
+
+        # ✅ Debugging: Print full API response
+        print("Gemini API Response:", response_json)
+
+        # ✅ Check if "candidates" exist in the response
+        if "candidates" in response_json and response_json["candidates"]:
+            return response_json["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            return "Sorry, I couldn't generate a response. Try again."
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+if name == 'main':
+    socketio.run(app, debug=True)
